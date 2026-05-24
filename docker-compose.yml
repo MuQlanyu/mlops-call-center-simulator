@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: call-center-api
+    ports:
+      - "8000:8000"
+    environment:
+      - BACKBONE_NAME=${BACKBONE_NAME:-Qwen/Qwen3-0.6B}
+      - STEERING_CKPT=${STEERING_CKPT:-}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - mlflow
+
+  gradio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: call-center-gradio
+    command: ["python", "-m", "call_center_simulator.inference.app"]
+    ports:
+      - "7860:7860"
+    environment:
+      - API_URL=http://api:8000
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.0
+    container_name: call-center-mlflow
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlflow/artifacts
+    volumes:
+      - mlflow_data:/mlflow
+    restart: unless-stopped
+
+volumes:
+  mlflow_data:
