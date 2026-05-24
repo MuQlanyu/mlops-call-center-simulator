@@ -7,11 +7,11 @@ data:
   processed_path: data/processed/essays
   batch_size: 16
   num_workers: 0
-  max_length: 512
+  max_length: 512  # tokenizer truncation; conservative for CPU/smoke, increase for GPU training
   train_ratio: 0.8
   val_ratio: 0.1
   test_ratio: 0.1
   # OCEAN axis order: O, C, E, A, N
-  ocean_columns: [cEXT, cNEU, cAGR, cCON, cOPN]
-  ocean_order: [cOPN, cCON, cEXT, cAGR, cNEU]
+  ocean_columns: [cEXT, cNEU, cAGR, cCON, cOPN]  # raw column names in essays.csv (source order, do not reorder)
+  ocean_order: [cOPN, cCON, cEXT, cAGR, cNEU]    # canonical OCEAN order used downstream for model output indexing
   text_column: TEXT

@@ -6,7 +6,7 @@ model:
   #   hidden_size: 1024
   #   num_hidden_layers: 28
   #   target_layer: 14  (= num_hidden_layers // 2)
-  target_layer_fraction: 0.5
+  target_layer_fraction: 0.5  # fraction of num_hidden_layers → selects middle layer for steering hook
   dtype: float16
   gradient_checkpointing: true
-  lambda_steering: 0.1
+  lambda_steering: 0.1        # weight of auxiliary OCEAN-classifier loss term in steering training
