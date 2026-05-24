@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,8 +21,6 @@ from call_center_simulator.data.preprocessing import (
     normalize_ocean,
     user_based_split,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class EssaysDataModule(LightningDataModule):
@@ -69,6 +66,8 @@ class EssaysDataModule(LightningDataModule):
             batch_size=cfg.data.batch_size,
             num_workers=cfg.data.num_workers,
             max_length=cfg.data.max_length,
+            train_ratio=cfg.data.train_ratio,
+            val_ratio=cfg.data.val_ratio,
             seed=cfg.seed,
         )
 
@@ -79,6 +78,8 @@ class EssaysDataModule(LightningDataModule):
             )
 
     def setup(self, stage: str | None = None) -> None:
+        if self.train_dataset is not None:
+            return
         df = pd.read_csv(self.csv_path)
         df = normalize_ocean(df, self.ocean_cols)
         train_df, val_df, test_df = user_based_split(
@@ -109,7 +110,8 @@ class EssaysDataModule(LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
-        assert self.train_dataset is not None
+        if self.train_dataset is None:
+            raise RuntimeError("Call setup() before train_dataloader()")
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -118,7 +120,8 @@ class EssaysDataModule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
-        assert self.val_dataset is not None
+        if self.val_dataset is None:
+            raise RuntimeError("Call setup() before val_dataloader()")
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
@@ -127,7 +130,8 @@ class EssaysDataModule(LightningDataModule):
         )
 
     def test_dataloader(self) -> DataLoader[Any]:
-        assert self.test_dataset is not None
+        if self.test_dataset is None:
+            raise RuntimeError("Call setup() before test_dataloader()")
         return DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
@@ -157,10 +161,27 @@ class PersonaChatDataModule(LightningDataModule):
         self.max_history_turns = max_history_turns
         self.val_dataset: Dataset[Any] | None = None
 
+    def prepare_data(self) -> None:
+        personachat_dir = self.dataset_dir / "personachat"
+        if not personachat_dir.exists():
+            raise FileNotFoundError(
+                f"PersonaChat dataset not found: {personachat_dir}. "
+                f"Run: uv run dvc repro download"
+            )
+
     def setup(self, stage: str | None = None) -> None:
+        if self.val_dataset is not None:
+            return
+
         from datasets import load_from_disk  # type: ignore[import-untyped]
 
-        dataset = load_from_disk(str(self.dataset_dir / "personachat"))
+        personachat_dir = self.dataset_dir / "personachat"
+        dataset = load_from_disk(str(personachat_dir))
+        if "validation" not in dataset:
+            raise KeyError(
+                f"PersonaChat dataset at {personachat_dir} has no 'validation' split. "
+                f"Available splits: {list(dataset.keys())}"
+            )
         pairs = build_dialog_pairs(list(dataset["validation"]), self.max_history_turns)
         tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
         if tokenizer.pad_token is None:
@@ -186,7 +207,8 @@ class PersonaChatDataModule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
-        assert self.val_dataset is not None
+        if self.val_dataset is None:
+            raise RuntimeError("Call setup() before val_dataloader()")
         return DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
