@@ -85,6 +85,7 @@ def main(cfg: DictConfig) -> None:
         log_every_n_steps=cfg.train.log_every_n_steps,
     )
     trainer.fit(model, datamodule=datamodule)
+    trainer.test(model, datamodule=datamodule)
 
 
 if __name__ == "__main__":

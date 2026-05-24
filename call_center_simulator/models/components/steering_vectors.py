@@ -103,3 +103,10 @@ class SteeringVectors(nn.Module):
         if self._hook_handle is not None:
             self._hook_handle.remove()
             self._hook_handle = None
+
+    def __del__(self) -> None:
+        """Ensure hook is removed on garbage collection."""
+        try:
+            self.remove_hook()
+        except Exception:
+            pass

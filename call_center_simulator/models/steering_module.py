@@ -73,12 +73,17 @@ class SteeringModule(LightningModule):
             # Support both raw state_dict and Lightning checkpoint formats
             if "state_dict" in state:
                 # Lightning checkpoint: extract classifier sub-keys
-                prefix = "ocean_classifier."
+                prefix = "classifier."
                 classifier_state = {
                     k[len(prefix) :]: v
                     for k, v in state["state_dict"].items()
                     if k.startswith(prefix)
                 }
+                if not classifier_state:
+                    raise RuntimeError(
+                        f"No keys with prefix '{prefix}' found in Lightning checkpoint. "
+                        f"Available top-level prefixes: {sorted({k.split('.')[0] for k in state['state_dict']})}"
+                    )
                 self.ocean_classifier.load_state_dict(classifier_state)
             else:
                 self.ocean_classifier.load_state_dict(state)
@@ -130,6 +135,9 @@ class SteeringModule(LightningModule):
         last_hidden = outputs.hidden_states[-1]
         pooled = self._pool(last_hidden, attention_mask)
         ocean_preds = self.ocean_classifier(pooled)
+        # Clear stale profile to prevent leakage if backbone.generate() is called
+        # without set_ocean_profile
+        self.steering._ocean_profile = None
         return {"ce_lm": ce_lm, "ocean_preds": ocean_preds, "pooled": pooled}
 
     def training_step(self, batch: Any, batch_idx: int) -> Tensor:
@@ -163,9 +171,8 @@ class SteeringModule(LightningModule):
     def configure_optimizers(self) -> torch.optim.Optimizer:
         # Only steering vectors are trainable — verify this is the only param group
         trainable = list(self.steering.parameters())
-        assert all(
-            p.requires_grad for p in trainable
-        ), "Steering params must be trainable"
+        if not all(p.requires_grad for p in trainable):
+            raise RuntimeError("Steering params must be trainable")
         return torch.optim.Adam(
             trainable, lr=self.learning_rate, weight_decay=self.weight_decay
         )
