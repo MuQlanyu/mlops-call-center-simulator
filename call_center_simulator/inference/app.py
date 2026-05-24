@@ -74,7 +74,7 @@ def build_ui() -> gr.Blocks:
                     0.0, 1.0, value=0.5, label="Agreeableness (A)"
                 )
                 neuroticism = gr.Slider(0.0, 1.0, value=0.5, label="Neuroticism (N)")
-                max_tokens = gr.Slider(16, 256, value=128, step=16, label="Max tokens")
+                max_tokens = gr.Slider(16, 512, value=128, step=16, label="Max tokens")
                 btn = gr.Button("Generate reply", variant="primary")
             with gr.Column():
                 output = gr.Textbox(label="Client reply", lines=6)

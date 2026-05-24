@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -16,12 +17,56 @@ from call_center_simulator.models.components.steering_vectors import SteeringVec
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Call-Center Simulator API", version="0.1.0")
-
 # Module-level state (loaded on startup)
 _backbone: Any = None
 _tokenizer: Any = None
 _steering: SteeringVectors | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load backbone and steering vectors on startup; clean up on shutdown."""
+    global _backbone, _tokenizer, _steering
+
+    backbone_name = os.environ.get("BACKBONE_NAME", "Qwen/Qwen3-0.6B")
+    steering_ckpt = os.environ.get("STEERING_CKPT", "")
+
+    logger.info("Loading backbone: %s", backbone_name)
+    _tokenizer = AutoTokenizer.from_pretrained(backbone_name)
+    if _tokenizer.pad_token is None:
+        _tokenizer.pad_token = _tokenizer.eos_token
+
+    _backbone = AutoModelForCausalLM.from_pretrained(
+        backbone_name, torch_dtype=torch.float16
+    )
+    _backbone.eval()
+
+    # hidden_size read from model.config — never hardcoded
+    hidden_size: int = _backbone.config.hidden_size
+    num_layers: int = _backbone.config.num_hidden_layers
+    target_layer: int = num_layers // 2
+
+    _steering = SteeringVectors(hidden_size=hidden_size)
+    if steering_ckpt and Path(steering_ckpt).exists():
+        state = torch.load(steering_ckpt, map_location="cpu")
+        _steering.load_state_dict(state)
+        logger.info("Loaded steering vectors from %s", steering_ckpt)
+    _steering.register(_backbone, target_layer=target_layer)
+    logger.info(
+        "Model ready. hidden_size=%d, target_layer=%d", hidden_size, target_layer
+    )
+
+    yield
+
+    # shutdown — remove hook if present
+    if _steering is not None:
+        try:
+            _steering.remove_hook()
+        except Exception:
+            pass
+
+
+app = FastAPI(title="Call-Center Simulator API", version="0.1.0", lifespan=lifespan)
 
 
 class OceanProfile(BaseModel):
@@ -61,40 +106,6 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     reply: str
-
-
-@app.on_event("startup")
-async def load_model() -> None:
-    """Load backbone and steering vectors on startup."""
-    global _backbone, _tokenizer, _steering
-
-    backbone_name = os.environ.get("BACKBONE_NAME", "Qwen/Qwen3-0.6B")
-    steering_ckpt = os.environ.get("STEERING_CKPT", "")
-
-    logger.info("Loading backbone: %s", backbone_name)
-    _tokenizer = AutoTokenizer.from_pretrained(backbone_name)
-    if _tokenizer.pad_token is None:
-        _tokenizer.pad_token = _tokenizer.eos_token
-
-    _backbone = AutoModelForCausalLM.from_pretrained(
-        backbone_name, torch_dtype=torch.float16
-    )
-    _backbone.eval()
-
-    # hidden_size read from model.config — never hardcoded
-    hidden_size: int = _backbone.config.hidden_size
-    num_layers: int = _backbone.config.num_hidden_layers
-    target_layer: int = num_layers // 2
-
-    _steering = SteeringVectors(hidden_size=hidden_size)
-    if steering_ckpt and Path(steering_ckpt).exists():
-        state = torch.load(steering_ckpt, map_location="cpu")
-        _steering.load_state_dict(state)
-        logger.info("Loaded steering vectors from %s", steering_ckpt)
-    _steering.register(_backbone, target_layer=target_layer)
-    logger.info(
-        "Model ready. hidden_size=%d, target_layer=%d", hidden_size, target_layer
-    )
 
 
 @app.get("/")

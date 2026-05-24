@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
+import sys
 from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -25,20 +28,36 @@ def download_data() -> None:
     typer.echo("Data downloaded successfully.")
 
 
-@app.command()
-def train_ocean() -> None:
-    """Train OCEAN classifier head on Essays dataset."""
-    from call_center_simulator.training.train_ocean_classifier import main
+@app.command("train-ocean")
+def train_ocean(
+    overrides: Annotated[
+        list[str] | None,
+        typer.Argument(help="Hydra overrides, e.g. train=smoke"),
+    ] = None,
+) -> None:
+    """Train the OCEAN classifier head (Task 6)."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "call_center_simulator.training.train_ocean_classifier",
+    ]
+    if overrides:
+        cmd.extend(overrides)
+    subprocess.run(cmd, check=True)
 
-    main()
 
-
-@app.command()
-def train_steering() -> None:
-    """Train steering vectors on Essays dataset."""
-    from call_center_simulator.training.train import main
-
-    main()
+@app.command("train-steering")
+def train_steering(
+    overrides: Annotated[
+        list[str] | None,
+        typer.Argument(help="Hydra overrides, e.g. train=smoke"),
+    ] = None,
+) -> None:
+    """Train the steering vectors (Task 7)."""
+    cmd = [sys.executable, "-m", "call_center_simulator.training.train"]
+    if overrides:
+        cmd.extend(overrides)
+    subprocess.run(cmd, check=True)
 
 
 @app.command()
