@@ -1,0 +1,103 @@
+stages:
+  download:
+    cmd: uv run python -m call_center_simulator.data.download
+    deps:
+      - call_center_simulator/data/download.py
+    outs:
+      - data/raw/essays.csv
+      - data/raw/personachat
+
+  preprocess:
+    cmd: >
+      uv run python -c "
+      import pandas as pd;
+      from call_center_simulator.data.preprocessing import normalize_ocean, user_based_split, OCEAN_AXIS_ORDER;
+      df = pd.read_csv('data/raw/essays.csv');
+      df = normalize_ocean(df, OCEAN_AXIS_ORDER);
+      train, val, test = user_based_split(df, '#AUTHID', 0.8, 0.1, 42);
+      import pathlib; pathlib.Path('data/processed').mkdir(parents=True, exist_ok=True);
+      train.to_csv('data/processed/essays_train.csv', index=False);
+      val.to_csv('data/processed/essays_val.csv', index=False);
+      test.to_csv('data/processed/essays_test.csv', index=False);
+      print('Preprocessing done.')
+      "
+    deps:
+      - call_center_simulator/data/preprocessing.py
+      - data/raw/essays.csv
+    outs:
+      - data/processed/essays_train.csv
+      - data/processed/essays_val.csv
+      - data/processed/essays_test.csv
+
+  train_ocean_classifier:
+    cmd: >
+      uv run python -m call_center_simulator.training.train_ocean_classifier
+      train=default
+    deps:
+      - call_center_simulator/training/train_ocean_classifier.py
+      - call_center_simulator/models/ocean_classifier_module.py
+      - call_center_simulator/models/components/ocean_classifier.py
+      - data/processed/essays_train.csv
+      - data/processed/essays_val.csv
+    outs:
+      - models/ocean_classifier_best.ckpt
+    params:
+      - configs/config.yaml:
+          - seed
+      - configs/train/default.yaml:
+          - train.max_epochs
+          - train.learning_rate
+      - configs/model/qwen.yaml:
+          - model.backbone_name
+      - configs/model/ocean_classifier.yaml:
+          - model.ocean_classifier.hidden_dim
+
+  export_onnx:
+    cmd: >
+      uv run python -m call_center_simulator.inference.export_onnx
+    deps:
+      - call_center_simulator/inference/export_onnx.py
+      - models/ocean_classifier_best.ckpt
+    outs:
+      - models/ocean_classifier.onnx
+
+  train_steering:
+    cmd: >
+      uv run python -m call_center_simulator.training.train
+      train=default
+    deps:
+      - call_center_simulator/training/train.py
+      - call_center_simulator/models/steering_module.py
+      - call_center_simulator/models/components/steering_vectors.py
+      - models/ocean_classifier_best.ckpt
+      - data/processed/essays_train.csv
+      - data/processed/essays_val.csv
+    outs:
+      - models/steering_best.ckpt
+    params:
+      - configs/config.yaml:
+          - seed
+      - configs/train/default.yaml:
+          - train.max_epochs
+          - train.learning_rate
+      - configs/model/qwen.yaml:
+          - model.backbone_name
+          - model.lambda_steering
+
+  evaluate:
+    cmd: >
+      uv run python -c "
+      import torch, json;
+      from call_center_simulator.utils.metrics import compute_mape_ocean, compute_perplexity;
+      print('Evaluate stage: placeholder — run after real training on GPU.');
+      metrics = {'mape_ocean': 0.0, 'perplexity': 0.0};
+      import pathlib; pathlib.Path('models').mkdir(exist_ok=True);
+      pathlib.Path('models/metrics.json').write_text(json.dumps(metrics));
+      print('Metrics saved to models/metrics.json')
+      "
+    deps:
+      - call_center_simulator/utils/metrics.py
+      - models/steering_best.ckpt
+    metrics:
+      - models/metrics.json:
+          cache: false
