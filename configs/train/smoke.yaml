@@ -1,0 +1,22 @@
+# @package _global_
+# Smoke config: tiny run for CI / fast iteration on CPU
+train:
+  max_epochs: 1
+  max_steps: 3
+  learning_rate: 1.0e-3
+  weight_decay: 0.0
+  accelerator: cpu
+  devices: 1
+  precision: 32
+  gradient_clip_val: 1.0
+  log_every_n_steps: 1
+  check_val_every_n_epoch: 1
+  early_stopping:
+    monitor: val_loss
+    patience: 2
+    mode: min
+  checkpoint:
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    filename: "smoke-{epoch:02d}"

@@ -1,0 +1,22 @@
+defaults:
+  - data: essays
+  - model: qwen
+  - train: default
+  - _self_
+
+seed: 42
+
+paths:
+  data_dir: data
+  raw_data_dir: ${paths.data_dir}/raw
+  processed_data_dir: ${paths.data_dir}/processed
+  models_dir: models
+  plots_dir: plots
+
+mlflow:
+  tracking_uri: http://127.0.0.1:8080
+  experiment_name: call-center-simulator
+  run_name: null
+
+logging:
+  log_level: INFO

@@ -1,0 +1,10 @@
+# @package _global_
+data:
+  name: personachat
+  hf_dataset: bavard/personachat_truecased
+  raw_path: data/raw/personachat
+  processed_path: data/processed/personachat
+  batch_size: 8
+  num_workers: 0
+  max_length: 256
+  max_history_turns: 10

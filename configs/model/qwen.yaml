@@ -1,0 +1,12 @@
+# @package _global_
+model:
+  backbone_name: Qwen/Qwen3-0.6B
+  # hidden_size and num_layers are read from model.config at runtime.
+  # Reference values (derived from Qwen3-0.6B config, for documentation only):
+  #   hidden_size: 1024
+  #   num_hidden_layers: 28
+  #   target_layer: 14  (= num_hidden_layers // 2)
+  target_layer_fraction: 0.5
+  dtype: float16
+  gradient_checkpointing: true
+  lambda_steering: 0.1

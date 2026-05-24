@@ -1,0 +1,17 @@
+# @package _global_
+data:
+  name: essays
+  essays_url: "https://raw.githubusercontent.com/SenticNet/personality-detection/master/data/essays.csv"
+  essays_fallback_path: "data/raw/essays.csv"
+  raw_path: data/raw/essays.csv
+  processed_path: data/processed/essays
+  batch_size: 16
+  num_workers: 0
+  max_length: 512
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  # OCEAN axis order: O, C, E, A, N
+  ocean_columns: [cEXT, cNEU, cAGR, cCON, cOPN]
+  ocean_order: [cOPN, cCON, cEXT, cAGR, cNEU]
+  text_column: TEXT
