@@ -1,0 +1,134 @@
+"""Typer CLI entry-point for call-center simulator."""
+
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+
+import typer
+
+app = typer.Typer(help="Call-Center Simulator CLI")
+logger = logging.getLogger(__name__)
+
+
+@app.command()
+def download_data() -> None:
+    """Download Essays and PersonaChat datasets."""
+    from call_center_simulator.data.download import (
+        download_essays,
+        download_personachat,
+    )
+
+    download_essays(Path("data/raw/essays.csv"))
+    download_personachat(Path("data/raw"))
+    typer.echo("Data downloaded successfully.")
+
+
+@app.command()
+def train_ocean() -> None:
+    """Train OCEAN classifier head on Essays dataset."""
+    from call_center_simulator.training.train_ocean_classifier import main
+
+    main()
+
+
+@app.command()
+def train_steering() -> None:
+    """Train steering vectors on Essays dataset."""
+    from call_center_simulator.training.train import main
+
+    main()
+
+
+@app.command()
+def export_onnx(
+    ckpt_path: str | None = typer.Option(None, help="Path to classifier checkpoint"),
+    output: str = typer.Option("models/ocean_classifier.onnx", help="Output ONNX path"),
+    backbone: str = typer.Option("Qwen/Qwen3-0.6B", help="Backbone model name"),
+) -> None:
+    """Export OCEAN classifier to ONNX format."""
+    import torch
+    from transformers import AutoModel
+
+    from call_center_simulator.inference.export_onnx import (
+        export_ocean_classifier_onnx,
+        verify_onnx,
+    )
+    from call_center_simulator.models.components.ocean_classifier import (
+        OceanClassifierHead,
+    )
+
+    backbone_model = AutoModel.from_pretrained(backbone)
+    hidden_size: int = backbone_model.config.hidden_size
+
+    classifier = OceanClassifierHead(
+        input_dim=hidden_size, hidden_dim=256, output_dim=5
+    )
+    if ckpt_path:
+        state = torch.load(ckpt_path, map_location="cpu")
+        classifier.load_state_dict(state)
+
+    onnx_path = Path(output)
+    export_ocean_classifier_onnx(classifier, onnx_path, input_dim=hidden_size)
+    verify_onnx(onnx_path, input_dim=hidden_size)
+    typer.echo(f"ONNX exported to {onnx_path}")
+
+
+@app.command()
+def infer(
+    situation: str = typer.Option("", help="Situation description"),
+    history_json: str = typer.Option("[]", help="JSON list of {role, text} dicts"),
+    openness: float = typer.Option(0.5),
+    conscientiousness: float = typer.Option(0.5),
+    extraversion: float = typer.Option(0.5),
+    agreeableness: float = typer.Option(0.5),
+    neuroticism: float = typer.Option(0.5),
+    backbone: str = typer.Option("Qwen/Qwen3-0.6B"),
+    steering_ckpt: str | None = typer.Option(None),
+    max_tokens: int = typer.Option(128),
+) -> None:
+    """Generate a client reply from CLI."""
+    from call_center_simulator.inference.infer import generate_reply, load_model
+
+    history = json.loads(history_json)
+    ocean_profile = [
+        openness,
+        conscientiousness,
+        extraversion,
+        agreeableness,
+        neuroticism,
+    ]
+    model, tokenizer, steering = load_model(backbone, steering_ckpt)
+    reply = generate_reply(
+        model, tokenizer, steering, situation, history, ocean_profile, max_tokens
+    )
+    typer.echo(reply)
+
+
+@app.command()
+def serve_api(
+    host: str = typer.Option("0.0.0.0"),
+    port: int = typer.Option(8000),
+) -> None:
+    """Start FastAPI inference server."""
+    import uvicorn
+
+    uvicorn.run(
+        "call_center_simulator.inference.api:app", host=host, port=port, reload=False
+    )
+
+
+@app.command()
+def serve_ui(
+    host: str = typer.Option("0.0.0.0"),
+    port: int = typer.Option(7860),
+) -> None:
+    """Start Gradio UI."""
+    from call_center_simulator.inference.app import main
+
+    main()
+
+
+if __name__ == "__main__":
+    app()
