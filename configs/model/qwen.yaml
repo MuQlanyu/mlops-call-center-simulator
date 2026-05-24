@@ -10,3 +10,5 @@ model:
   dtype: float16
   gradient_checkpointing: true
   lambda_steering: 0.1        # weight of auxiliary OCEAN-classifier loss term in steering training
+  model_kwargs:
+    trust_remote_code: false

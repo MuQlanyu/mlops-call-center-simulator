@@ -40,8 +40,9 @@ def main(cfg: DictConfig) -> None:
         )
     except Exception:
         git_commit = "unknown"
-    mlflow_logger.log_hyperparams({"git_commit": git_commit})
-    mlflow_logger.log_hyperparams(OmegaConf.to_container(cfg, resolve=True))  # type: ignore[arg-type]
+    params = OmegaConf.to_container(cfg, resolve=True)
+    params["git_commit"] = git_commit  # type: ignore[index]
+    mlflow_logger.log_hyperparams(params)  # type: ignore[arg-type]
 
     datamodule = EssaysDataModule.from_hydra_config(cfg)
     model = OceanClassifierModule(
@@ -50,6 +51,10 @@ def main(cfg: DictConfig) -> None:
         dropout=cfg.model.ocean_classifier.dropout,
         learning_rate=cfg.train.learning_rate,
         weight_decay=cfg.train.weight_decay,
+        model_kwargs=OmegaConf.to_container(
+            cfg.model.get("model_kwargs", {}), resolve=True
+        )
+        or None,  # type: ignore[arg-type]
     )
     callbacks = [
         ModelCheckpoint(
@@ -67,6 +72,8 @@ def main(cfg: DictConfig) -> None:
     ]
     trainer = Trainer(
         max_epochs=cfg.train.max_epochs,
+        max_steps=cfg.train.get("max_steps", -1),
+        check_val_every_n_epoch=cfg.train.get("check_val_every_n_epoch", 1),
         accelerator=cfg.train.accelerator,
         devices=cfg.train.devices,
         precision=cfg.train.precision,
