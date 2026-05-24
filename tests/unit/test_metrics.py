@@ -53,10 +53,16 @@ def test_bleu_identical():
     assert score > 0.99
 
 
-def test_bleu_empty():
-    # No overlapping n-grams -> BLEU ~= 0 (method1 smoothing keeps it near 0)
+def test_bleu_no_overlap_low_score():
+    # No overlapping n-grams -> BLEU should be very low (< 0.3)
     score = compute_bleu(["foo bar baz qux"], ["aaa bbb ccc ddd"])
-    assert score == pytest.approx(0.0, abs=1e-5)
+    assert score < 0.3
+
+
+def test_bleu_empty_input():
+    """Empty hypothesis/reference lists return 0.0, not ZeroDivisionError."""
+    score = compute_bleu([], [])
+    assert score == 0.0
 
 
 def test_rouge_l_identical():
@@ -82,3 +88,22 @@ def test_distinct_all_same():
     d1, d2 = compute_distinct(texts)
     assert d1 == pytest.approx(1 / 4, abs=1e-5)
     assert d2 == pytest.approx(1 / 3, abs=1e-5)
+
+
+def test_mape_ocean_empty_batch():
+    """Empty batch returns zeros, not NaN."""
+    preds = torch.empty(0, 5)
+    targets = torch.empty(0, 5)
+    overall, per_axis = compute_mape_ocean(preds, targets)
+    assert overall == 0.0
+    assert per_axis == [0.0] * 5
+
+
+def test_perplexity_overflow():
+    """Very large loss returns inf, not raises."""
+    assert compute_perplexity(1000.0) == float("inf")
+
+
+def test_rouge_l_truly_empty():
+    """Empty input list returns 0.0."""
+    assert compute_rouge_l([], []) == 0.0

@@ -26,6 +26,8 @@ def compute_mape_ocean(
     Returns:
         Tuple of (mean_mape, per_axis_mape). Axis order: O, C, E, A, N.
     """
+    if preds.numel() == 0:
+        return 0.0, [0.0] * 5
     abs_err = (preds - targets).abs()
     denom = targets.abs().clamp(min=eps)
     per_sample_per_axis = abs_err / denom  # [B, 5]
@@ -43,7 +45,10 @@ def compute_perplexity(avg_cross_entropy_loss: float) -> float:
     Returns:
         Perplexity = exp(loss).
     """
-    return math.exp(avg_cross_entropy_loss)
+    try:
+        return math.exp(avg_cross_entropy_loss)
+    except OverflowError:
+        return float("inf")
 
 
 def compute_bleu(hypotheses: list[str], references: list[str]) -> float:
@@ -56,9 +61,12 @@ def compute_bleu(hypotheses: list[str], references: list[str]) -> float:
     Returns:
         BLEU-4 score in [0, 1].
     """
+    if not hypotheses:
+        return 0.0
     tokenized_hyps = [h.split() for h in hypotheses]
     tokenized_refs = [[r.split()] for r in references]
     smoothing = SmoothingFunction().method1
+    # BLEU-4: uniform weights over 1-4-grams (default weights=(0.25,)*4)
     return float(
         corpus_bleu(tokenized_refs, tokenized_hyps, smoothing_function=smoothing)
     )
