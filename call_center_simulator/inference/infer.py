@@ -40,7 +40,21 @@ def load_model(
     steering = SteeringVectors(hidden_size=hidden_size)
     if steering_ckpt and Path(steering_ckpt).exists():
         state = torch.load(steering_ckpt, map_location="cpu")
-        steering.load_state_dict(state)
+        if "state_dict" in state:
+            prefix = "steering."
+            sv_state = {
+                k[len(prefix) :]: v
+                for k, v in state["state_dict"].items()
+                if k.startswith(prefix)
+            }
+            if not sv_state:
+                raise RuntimeError(
+                    f"No keys with prefix '{prefix}' found in Lightning checkpoint. "
+                    f"Available top-level prefixes: {sorted({k.split('.')[0] for k in state['state_dict']})}"
+                )
+            steering.load_state_dict(sv_state)
+        else:
+            steering.load_state_dict(state)
     steering.register(model, target_layer=target_layer)
 
     return model, tokenizer, steering
