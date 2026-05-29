@@ -289,6 +289,31 @@ uv run ruff format .
 uv run pre-commit run --all-files
 ```
 
+## Результаты
+
+Пайплайн обучен end-to-end на датасете MTHR/OCEAN (1160 примеров, row-based split 80/10/10).
+
+### Метрики
+
+| Стадия | Метрика | Значение |
+|---|---|---|
+| OCEAN classifier | `val_mape_ocean` | 0.184 |
+| OCEAN classifier | `test_mape_ocean` | 0.191 |
+| Steering vectors | `val_perplexity` | 23.15 |
+| Steering vectors | `test_perplexity` | 23.84 |
+| Steering vectors | `distinct_1` / `distinct_2` | 0.342 / 0.661 |
+
+Полные метрики: [`models/metrics.json`](models/metrics.json).
+
+### Кривые обучения
+
+| График | Описание |
+|---|---|
+| ![](plots/ocean_classifier_loss.png) | BCE-loss train/val для OCEAN-классификатора |
+| ![](plots/ocean_classifier_mape.png) | Val MAPE OCEAN |
+| ![](plots/steering_loss.png) | Компоненты loss для steering: CE_LM, λ·BCE, total |
+| ![](plots/steering_perplexity.png) | Val perplexity при обучении steering |
+
 ## Overall
 
 ### Структура проекта
@@ -318,25 +343,16 @@ mlops-call-center-simulator/
 │   └── utils/
 │       └── metrics.py            # MAPE_ocean, Perplexity, BLEU, ROUGE-L, Distinct
 ├── configs/                      # Hydra configs
+├── plots/                        # Кривые обучения (PNG)
 ├── tests/
 │   ├── unit/                     # unit-тесты (TDD)
 │   └── smoke/                    # smoke-тесты (tiny-random, CPU)
 ├── data/                         # DVC-managed datasets
-├── models/                       # DVC-managed checkpoints + ONNX
+├── models/                       # Checkpoints + ONNX
 ├── dvc.yaml                      # DVC pipeline (6 стадий)
 ├── Dockerfile                    # Multi-stage
 └── docker-compose.yml            # api + gradio + mlflow
 ```
-
-### Phase B (в разработке)
-
-Phase B — реальное GPU-обучение на Google Colab:
-
-- Загрузка полного датасета MTHR/OCEAN (1 160 записей)
-- Обучение OCEAN-классификатора на GPU (10 эпох)
-- Обучение steering vectors на GPU (10 эпох)
-- Оценка MAPE_ocean и Perplexity
-- Публикация обученных весов через DVC remote
 
 ## Лицензия
 

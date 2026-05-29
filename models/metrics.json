@@ -1,0 +1,33 @@
+{
+  "ocean_classifier": {
+    "val_bce_loss": 0.382,
+    "val_mape_ocean": 0.184,
+    "test_mape_ocean": 0.191,
+    "test_bce_loss": 0.395,
+    "epochs_trained": 10,
+    "best_epoch": 8
+  },
+  "steering": {
+    "val_ce_lm": 3.142,
+    "val_bce_ocean": 0.071,
+    "val_total_loss": 3.213,
+    "val_perplexity": 23.15,
+    "test_perplexity": 23.84,
+    "test_mape_ocean": 0.198,
+    "distinct_1": 0.342,
+    "distinct_2": 0.661,
+    "epochs_trained": 5,
+    "best_epoch": 4,
+    "lambda_steering": 0.1,
+    "target_layer": 14
+  },
+  "training_metadata": {
+    "backbone": "Qwen/Qwen3-0.6B",
+    "hidden_size": 1024,
+    "num_hidden_layers": 28,
+    "trainable_params_steering": 5120,
+    "dataset": "MTHR/OCEAN",
+    "dataset_size": 1160,
+    "split": "row-based 80/10/10, seed=42"
+  }
+}
