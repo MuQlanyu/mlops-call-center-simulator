@@ -68,7 +68,7 @@ class SteeringVectors(nn.Module):
             hidden = output[0] if isinstance(output, tuple) else output
             modified = self.apply_delta(hidden, ocean_profile)
             if isinstance(output, tuple):
-                return (modified,) + output[1:]
+                return (modified, *output[1:])
             return modified
 
         return hook
@@ -93,7 +93,7 @@ class SteeringVectors(nn.Module):
             hidden = output[0] if isinstance(output, tuple) else output
             modified = self.apply_delta(hidden, self._ocean_profile)
             if isinstance(output, tuple):
-                return (modified,) + output[1:]
+                return (modified, *output[1:])
             return modified
 
         self._hook_handle = layer.register_forward_hook(hook)
