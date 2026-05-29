@@ -34,7 +34,7 @@ cp .env.example .env
 
 ### Data management
 
-Download Essays + PersonaChat datasets (recommended via DVC):
+Download MTHR/OCEAN dataset from HuggingFace Hub (recommended via DVC):
 
 ```bash
 uv run dvc repro download
@@ -56,7 +56,7 @@ uv run mlflow server --host 127.0.0.1 --port 8080 \
   --default-artifact-root ./mlruns
 ```
 
-Train OCEAN classifier head on Essays dataset:
+Train OCEAN classifier head on MTHR/OCEAN dataset:
 
 ```bash
 uv run python -m call_center_simulator.cli train-ocean
@@ -114,7 +114,7 @@ uv run python -m call_center_simulator.cli serve-ui
 
 ### Testing and quality
 
-Run full test suite (33 unit + 8 smoke, < 5 s on CPU):
+Run full test suite (45 tests, < 5 s on CPU):
 
 ```bash
 uv run pytest
@@ -175,18 +175,18 @@ docker run -p 8000:8000 \
 
 Two-stage ML pipeline for OCEAN-conditioned text generation:
 
-1. **OceanClassifierHead** pre-trained on Essays dataset (BCE loss) → exported to ONNX
-2. **SteeringVectors** trained on Essays with frozen backbone + frozen OCEAN classifier
+1. **OceanClassifierHead** pre-trained on MTHR/OCEAN dataset (BCE loss) → exported to ONNX
+2. **SteeringVectors** trained on MTHR/OCEAN with frozen backbone + frozen OCEAN classifier
 
 Data flow:
 ```
-Essays CSV
-    → EssaysDataModule (user-based split 80/10/10, seed=42)
+MTHR/OCEAN (HuggingFace Hub, 1160 rows)
+    → OceanDataModule (row-based split 80/10/10, seed=42)
     → OceanClassifierModule (frozen Qwen3-0.6B + MLP head, BCE)
     → ocean_classifier.onnx
     → SteeringModule (frozen backbone + frozen OCEAN clf + trainable SteeringVectors)
     → steering_best.ckpt
-    → FastAPI /generate ← Gradio UI
+    → FastAPI /generate <- Gradio UI
 ```
 
 ### Model architecture
@@ -197,23 +197,23 @@ Essays CSV
 - `target_layer = num_hidden_layers // 2` (= 14; **never hardcode**)
 
 **OceanClassifierHead** (`call_center_simulator.models.components.ocean_classifier`):
-- `Linear(hidden_size → 256) → ReLU → Dropout(0.1) → Linear(256 → 5) → Sigmoid`
+- `Linear(hidden_size -> 256) -> ReLU -> Dropout(0.1) -> Linear(256 -> 5) -> Sigmoid`
 - Input: mean-pooled last hidden state `[B, hidden_size]`
 - Output: 5 values in `[0, 1]`, axis order **O, C, E, A, N**
 
 **SteeringVectors** (`call_center_simulator.models.components.steering_vectors`):
 - `nn.Parameter([5, hidden_size])`, initialized to zeros
 - Injected via `register_forward_hook` on layer `target_layer`
-- Delta: `ocean_profile @ vectors` → `[B, hidden_size]`, broadcast over seq_len
-- Total trainable params: 5 × 1024 = **5 120**
+- Delta: `ocean_profile @ vectors` -> `[B, hidden_size]`, broadcast over seq_len
+- Total trainable params: 5 x 1024 = **5 120**
 
 **Loss function:**
 ```
-L = CE_LM + λ × BCE(OceanClassifier(pooled_last_hidden), target_profile)
+L = CE_LM + lambda x BCE(OceanClassifier(pooled_last_hidden), target_profile)
 ```
-where `λ = cfg.model.lambda_steering = 0.1`
+where `lambda = cfg.model.lambda_steering = 0.1`
 
-**OCEAN axis order (canonical throughout all code):** `["cOPN", "cCON", "cEXT", "cAGR", "cNEU"]`
+**OCEAN axis order (canonical throughout all code):** `["Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"]`
 
 ### Configuration system
 
@@ -224,22 +224,27 @@ where `λ = cfg.model.lambda_steering = 0.1`
 - `configs/model/ocean_classifier.yaml` — hidden_dim, dropout, onnx_path
 - `configs/train/default.yaml` — epochs, lr, early stopping, checkpointing
 - `configs/train/smoke.yaml` — fast CPU config for CI (1 epoch, 3 steps)
-- `configs/data/essays.yaml` — CSV path, OCEAN columns, batch size, splits
-- `configs/data/personachat.yaml` — HF dataset name, max_history_turns
+- `configs/data/ocean.yaml` — HF dataset name, OCEAN columns, value range, batch size, splits
 
 **Critical:** Hydra changes working directory to a run-specific folder. Always use `cfg.paths.*` for file paths, never assume `cwd`.
 
 ### Data module
 
-`EssaysDataModule` (`call_center_simulator.data.datamodule`):
-- Loads Essays CSV, normalizes OCEAN columns to `[0, 1]`
-- User-based split (no data leakage between users): 80% train / 10% val / 10% test
+`OceanDataModule` (`call_center_simulator.data.datamodule`):
+- Reads pre-processed CSVs (`ocean_train.csv`, `ocean_val.csv`, `ocean_test.csv`) from `data/processed/`
+- OCEAN values already normalized to `[0, 1]` in processed CSVs (raw range 1-5, formula: `(x-1)/4`)
 - Tokenizes with `AutoTokenizer` from backbone name
 - Returns `TensorDataset(input_ids, attention_mask, ocean_labels)`
+- Idempotent `setup()` via `_setup_done` flag
 
-`PersonaChatDataModule`:
-- Loads `bavard/personachat_truecased` from HuggingFace
-- Builds `{history, response}` pairs for BLEU/ROUGE-L evaluation
+### Dataset: MTHR/OCEAN
+
+- **Source:** `MTHR/OCEAN` on HuggingFace Hub (public, non-gated, MIT license)
+- **Size:** 1 160 rows, single `train` split
+- **Columns:** `Text` (string), `Openness`, `Conscientiousness`, `Extraversion`, `Agreeableness`, `Neuroticism` (float64)
+- **Value range:** 1.0-5.0 (Likert scale) → normalized to [0, 1] via `(x - 1) / 4`
+- **No user_id column** → row-based split (not user-based)
+- **Split:** 80% train / 10% val / 10% test, `seed=42`, `numpy.random.default_rng`
 
 ### Serving
 
@@ -250,7 +255,7 @@ where `λ = cfg.model.lambda_steering = 0.1`
 - Returns 422 on out-of-range OCEAN values
 
 **Gradio UI** (`call_center_simulator.inference.app`):
-- 5 sliders for OCEAN profile (0.0–1.0)
+- 5 sliders for OCEAN profile (0.0-1.0)
 - Textbox for situation + dialog history
 - Calls FastAPI `/generate` via `httpx`
 
@@ -265,8 +270,8 @@ where `λ = cfg.model.lambda_steering = 0.1`
 
 | Stage | Command | Inputs | Outputs |
 |---|---|---|---|
-| download | `cli download-data` | `download.py` | `data/raw/essays.csv`, `data/raw/personachat` |
-| preprocess | inline Python | `preprocessing.py`, essays.csv | `data/processed/essays_{train,val,test}.csv` |
+| download | `cli download-data` | `download.py` | `data/raw/ocean/ocean_raw.csv` |
+| preprocess | inline Python | `preprocessing.py`, `datamodule.py`, ocean_raw.csv | `data/processed/ocean_{train,val,test}.csv` |
 | train_ocean_classifier | `training.train_ocean_classifier` | processed CSVs | `models/ocean_classifier_best.ckpt` |
 | export_onnx | `inference.export_onnx` | classifier ckpt | `models/ocean_classifier.onnx` |
 | train_steering | `training.train` | processed CSVs, classifier ckpt | `models/steering_best.ckpt` |
@@ -280,9 +285,9 @@ Local DVC remote: `.dvc-storage/` in repo root.
 call_center_simulator/
 ├── cli.py                          # Typer CLI entrypoint
 ├── data/
-│   ├── download.py                 # Essays (GitHub raw) + PersonaChat (HF)
-│   ├── preprocessing.py            # normalize_ocean, user_based_split, build_*_pairs
-│   └── datamodule.py               # EssaysDataModule, PersonaChatDataModule
+│   ├── download.py                 # MTHR/OCEAN download from HuggingFace Hub
+│   ├── preprocessing.py            # normalize_ocean, row_based_split, build_ocean_pairs
+│   └── datamodule.py               # OceanDataModule + preprocess_and_save
 ├── models/
 │   ├── components/
 │   │   ├── ocean_classifier.py     # OceanClassifierHead MLP
@@ -293,7 +298,7 @@ call_center_simulator/
 │   ├── train_ocean_classifier.py   # Hydra entry-point
 │   └── train.py                    # Hydra entry-point
 ├── inference/
-│   ├── export_onnx.py              # OceanClassifierHead → ONNX
+│   ├── export_onnx.py              # OceanClassifierHead -> ONNX
 │   ├── api.py                      # FastAPI /generate + /health
 │   ├── app.py                      # Gradio UI
 │   └── infer.py                    # CLI inference utilities
@@ -305,14 +310,15 @@ call_center_simulator/
 
 1. **`hidden_size` from config**: Always use `model.config.hidden_size`, **never hardcode 1024**.
 2. **`target_layer` from config**: Always use `model.config.num_hidden_layers // 2`, **never hardcode 14**.
-3. **OCEAN axis order**: `["cOPN", "cCON", "cEXT", "cAGR", "cNEU"]` (O, C, E, A, N) throughout all code.
+3. **OCEAN axis order**: `["Openness", "Conscientiousness", "Extraversion", "Agreeableness", "Neuroticism"]` (O, C, E, A, N) throughout all code. These are the exact column names from MTHR/OCEAN.
 4. **Smoke tests**: Use tiny-random model (`hidden_size=64`, `num_hidden_layers=2`), **never download real Qwen3-0.6B** in tests.
 5. **No HF Trainer**: Training via PyTorch Lightning only.
 6. **DVC local remote**: `.dvc-storage/` in repo root — no cloud credentials needed for Phase A.
-7. **User-based split**: Essays split by `#AUTHID` to prevent data leakage between users.
+7. **Row-based split**: MTHR/OCEAN has no user_id column; rows are shuffled with `numpy.random.default_rng(seed=42)` and split 80/10/10.
 8. **Subprocess for Hydra**: `train-ocean` and `train-steering` CLI commands use `subprocess` to invoke Hydra entry-points, avoiding `sys.argv` conflicts with Typer.
 9. **Pydantic v2**: All API models use `Field(ge=0.0, le=1.0)` for OCEAN validation.
 10. **MLflow tracking**: All training runs log git commit SHA, hyperparameters, and metrics.
+11. **OCEAN normalization**: Raw MTHR/OCEAN values are in [1.0, 5.0] (Likert). Normalization formula: `(x - 1) / (5 - 1)`. Applied in `preprocess_and_save()` before saving processed CSVs.
 
 ## Environment variables
 
@@ -320,21 +326,21 @@ Defined in `.env.example`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `HF_TOKEN` | — | HuggingFace token (optional, Qwen3-0.6B is non-gated) |
+| `HF_TOKEN` | - | HuggingFace token (optional, Qwen3-0.6B and MTHR/OCEAN are non-gated) |
 | `MLFLOW_TRACKING_URI` | `http://127.0.0.1:8080` | MLflow server URI |
 | `BACKBONE_NAME` | `Qwen/Qwen3-0.6B` | Backbone model name for API server |
-| `STEERING_CKPT` | — | Path to trained steering vectors checkpoint |
+| `STEERING_CKPT` | - | Path to trained steering vectors checkpoint |
 
 ## Test structure
 
 ```
 tests/
-├── unit/                           # 33 tests, pure Python/PyTorch, no model download
+├── unit/                           # 39 tests, pure Python/PyTorch, no model download
 │   ├── test_metrics.py             # MAPE_ocean, Perplexity, BLEU, ROUGE-L, Distinct
-│   ├── test_preprocessing.py       # normalize_ocean, user_based_split, build_*_pairs
+│   ├── test_preprocessing.py       # normalize_ocean, row_based_split, build_ocean_pairs
 │   ├── test_ocean_classifier.py    # OceanClassifierHead shape/range/gradient
 │   └── test_steering_vectors.py    # SteeringVectors shape/trainable/apply_delta
-└── smoke/                          # 8 tests, tiny-random model, CPU, < 5 s total
+└── smoke/                          # 6 tests, tiny-random model, CPU, < 5 s total
     ├── test_smoke_training.py      # OceanClassifierModule + SteeringModule train steps
     └── test_smoke_api.py           # FastAPI /health + /generate + 422 validation
 ```

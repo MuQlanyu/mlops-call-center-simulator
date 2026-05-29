@@ -40,9 +40,10 @@
 
 ## Датасет
 
-- **Основной:** Essays (Mairesse/Pennebaker 2007) — 2 467 эссе с бинарными OCEAN-метками. Загружается с публичного GitHub-зеркала.
-- **Вспомогательный:** PersonaChat (`bavard/personachat_truecased` через HuggingFace datasets) — диалоговые пары для оценки BLEU/ROUGE-L.
-- **Разбивка:** user-based split 80/10/10 (seed=42) — без утечки данных между пользователями.
+- **Датасет:** [`MTHR/OCEAN`](https://huggingface.co/datasets/MTHR/OCEAN) — 1 160 синтетических текстов с непрерывными OCEAN-метками (Likert 1–5). Загружается с HuggingFace Hub.
+- **Схема:** колонки `Text`, `Openness`, `Conscientiousness`, `Extraversion`, `Agreeableness`, `Neuroticism` (float64, диапазон 1.0–5.0).
+- **Нормализация:** `(x - 1) / (5 - 1)` → `[0, 1]`.
+- **Разбивка:** row-based split 80/10/10 (seed=42) — нет колонки user_id.
 
 ## Метрики
 
@@ -50,8 +51,6 @@
 |---|---|---|
 | MAPE_ocean | < 0.25 | Средняя абсолютная процентная ошибка по 5 осям OCEAN |
 | Perplexity | < 50 | Перплексия языковой модели |
-| BLEU | > 0.10 | Корпусный BLEU-4 на PersonaChat |
-| ROUGE-L | > 0.20 | Средний ROUGE-L F1 на PersonaChat |
 | Distinct-1 | > 0.5 | Доля уникальных унiграмм (разнообразие) |
 | Distinct-2 | > 0.7 | Доля уникальных биграмм (разнообразие) |
 
@@ -61,7 +60,7 @@
 
 Двухэтапный pipeline:
 
-1. **Этап 1 — OceanClassifierHead** (предобучение на Essays):
+1. **Этап 1 — OceanClassifierHead** (предобучение на MTHR/OCEAN):
    - Замороженный backbone Qwen3-0.6B (`hidden_size=1024`, 28 слоёв)
    - MLP-голова: `Linear(1024→256) → ReLU → Dropout(0.1) → Linear(256→5) → Sigmoid`
    - Loss: BCE, оптимизатор: Adam
@@ -88,17 +87,12 @@ Client reply
 ```
 
 ```
-Essays CSV ──────────> EssaysDataModule (user-based split 80/10/10)
-                              |
-                              v
-                    OceanClassifierModule
-                    (frozen Qwen3-0.6B + MLP head)
-                    BCE loss ──> ocean_classifier.onnx
-                              |
-                              v
-                        SteeringModule
-                    (frozen backbone + frozen OCEAN clf)
-                    CE_LM + 0.1*BCE ──> steering_best.ckpt
+MTHR/OCEAN (HuggingFace Hub)
+    → OceanDataModule (row-based split 80/10/10, seed=42)
+    → OceanClassifierModule (frozen Qwen3-0.6B + MLP head, BCE)
+    → ocean_classifier.onnx
+    → SteeringModule (frozen backbone + frozen OCEAN clf)
+    → CE_LM + 0.1*BCE → steering_best.ckpt
 ```
 
 ## Setup
@@ -199,8 +193,7 @@ DVC pipeline: `download → preprocess → train_ocean_classifier → export_onn
 - `configs/model/ocean_classifier.yaml` — hidden_dim, dropout
 - `configs/train/default.yaml` — epochs, lr, early stopping, checkpointing
 - `configs/train/smoke.yaml` — быстрый конфиг для CI (1 эпоха, 3 шага, CPU)
-- `configs/data/essays.yaml` — пути к данным, OCEAN-колонки
-- `configs/data/personachat.yaml` — HF dataset, max_history
+- `configs/data/ocean.yaml` — HF dataset, OCEAN-колонки, диапазон значений, разбивка
 
 ## Production preparation
 
@@ -275,7 +268,7 @@ docker compose up --build
 ### Запуск тестов
 
 ```bash
-# Все тесты (33 unit + 8 smoke, < 5 с на CPU)
+# Все тесты (45 unit + smoke, < 5 с на CPU)
 uv run pytest
 
 # Только unit-тесты
@@ -305,9 +298,9 @@ mlops-call-center-simulator/
 ├── call_center_simulator/
 │   ├── cli.py                    # Typer CLI
 │   ├── data/
-│   │   ├── download.py           # Essays + PersonaChat
-│   │   ├── preprocessing.py      # normalize_ocean, user_based_split
-│   │   └── datamodule.py         # EssaysDataModule, PersonaChatDataModule
+│   │   ├── download.py           # MTHR/OCEAN (HuggingFace Hub)
+│   │   ├── preprocessing.py      # normalize_ocean, row_based_split
+│   │   └── datamodule.py         # OceanDataModule
 │   ├── models/
 │   │   ├── components/
 │   │   │   ├── ocean_classifier.py  # OceanClassifierHead MLP
@@ -318,7 +311,7 @@ mlops-call-center-simulator/
 │   │   ├── train_ocean_classifier.py   # Hydra entry-point
 │   │   └── train.py                    # Hydra entry-point
 │   ├── inference/
-│   │   ├── export_onnx.py        # OceanClassifierHead → ONNX
+│   │   ├── export_onnx.py        # OceanClassifierHead -> ONNX
 │   │   ├── api.py                # FastAPI /generate
 │   │   ├── app.py                # Gradio UI
 │   │   └── infer.py              # CLI inference
@@ -326,8 +319,8 @@ mlops-call-center-simulator/
 │       └── metrics.py            # MAPE_ocean, Perplexity, BLEU, ROUGE-L, Distinct
 ├── configs/                      # Hydra configs
 ├── tests/
-│   ├── unit/                     # 33 unit-теста (TDD)
-│   └── smoke/                    # 8 smoke-тестов (tiny-random, CPU)
+│   ├── unit/                     # unit-тесты (TDD)
+│   └── smoke/                    # smoke-тесты (tiny-random, CPU)
 ├── data/                         # DVC-managed datasets
 ├── models/                       # DVC-managed checkpoints + ONNX
 ├── dvc.yaml                      # DVC pipeline (6 стадий)
@@ -339,10 +332,10 @@ mlops-call-center-simulator/
 
 Phase B — реальное GPU-обучение на Google Colab:
 
-- Загрузка полного датасета Essays (2 467 записей)
+- Загрузка полного датасета MTHR/OCEAN (1 160 записей)
 - Обучение OCEAN-классификатора на GPU (10 эпох)
 - Обучение steering vectors на GPU (10 эпох)
-- Оценка на PersonaChat (BLEU, ROUGE-L, Distinct)
+- Оценка MAPE_ocean и Perplexity
 - Публикация обученных весов через DVC remote
 
 ## Лицензия
