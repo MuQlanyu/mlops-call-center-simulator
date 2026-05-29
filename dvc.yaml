@@ -4,30 +4,30 @@ stages:
     deps:
       - call_center_simulator/data/download.py
     outs:
-      - data/raw/essays.csv
-      - data/raw/personachat
+      - data/raw/ocean/ocean_raw.csv
 
   preprocess:
     cmd: >
       uv run python -c "
-      import pandas as pd;
-      from call_center_simulator.data.preprocessing import normalize_ocean, user_based_split, OCEAN_AXIS_ORDER;
-      df = pd.read_csv('data/raw/essays.csv');
-      df = normalize_ocean(df, OCEAN_AXIS_ORDER);
-      train, val, test = user_based_split(df, '#AUTHID', 0.8, 0.1, 42);
-      import pathlib; pathlib.Path('data/processed').mkdir(parents=True, exist_ok=True);
-      train.to_csv('data/processed/essays_train.csv', index=False);
-      val.to_csv('data/processed/essays_val.csv', index=False);
-      test.to_csv('data/processed/essays_test.csv', index=False);
+      from call_center_simulator.data.datamodule import preprocess_and_save;
+      from pathlib import Path;
+      preprocess_and_save(
+        raw_csv='data/raw/ocean/ocean_raw.csv',
+        output_dir='data/processed',
+        train_ratio=0.8,
+        val_ratio=0.1,
+        seed=42,
+      );
       print('Preprocessing done.')
       "
     deps:
       - call_center_simulator/data/preprocessing.py
-      - data/raw/essays.csv
+      - call_center_simulator/data/datamodule.py
+      - data/raw/ocean/ocean_raw.csv
     outs:
-      - data/processed/essays_train.csv
-      - data/processed/essays_val.csv
-      - data/processed/essays_test.csv
+      - data/processed/ocean_train.csv
+      - data/processed/ocean_val.csv
+      - data/processed/ocean_test.csv
 
   train_ocean_classifier:
     cmd: >
@@ -37,8 +37,8 @@ stages:
       - call_center_simulator/training/train_ocean_classifier.py
       - call_center_simulator/models/ocean_classifier_module.py
       - call_center_simulator/models/components/ocean_classifier.py
-      - data/processed/essays_train.csv
-      - data/processed/essays_val.csv
+      - data/processed/ocean_train.csv
+      - data/processed/ocean_val.csv
     outs:
       - models/ocean_classifier_best.ckpt
     params:
@@ -70,8 +70,8 @@ stages:
       - call_center_simulator/models/steering_module.py
       - call_center_simulator/models/components/steering_vectors.py
       - models/ocean_classifier_best.ckpt
-      - data/processed/essays_train.csv
-      - data/processed/essays_val.csv
+      - data/processed/ocean_train.csv
+      - data/processed/ocean_val.csv
     outs:
       - models/steering_best.ckpt
     params:
