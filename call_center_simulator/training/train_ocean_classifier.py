@@ -1,4 +1,4 @@
-"""Entry point: pre-train OCEAN classifier head on Essays dataset."""
+"""Entry point: pre-train OCEAN classifier head on MTHR/OCEAN dataset."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import MLFlowLogger
 from omegaconf import DictConfig, OmegaConf
 
-from call_center_simulator.data.datamodule import EssaysDataModule
+from call_center_simulator.data.datamodule import OceanDataModule
 from call_center_simulator.models.ocean_classifier_module import OceanClassifierModule
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def main(cfg: DictConfig) -> None:
     params["git_commit"] = git_commit  # type: ignore[index]
     mlflow_logger.log_hyperparams(params)  # type: ignore[arg-type]
 
-    datamodule = EssaysDataModule.from_hydra_config(cfg)
+    datamodule = OceanDataModule.from_hydra_config(cfg)
     model = OceanClassifierModule(
         backbone_name=cfg.model.backbone_name,
         hidden_dim=cfg.model.ocean_classifier.hidden_dim,

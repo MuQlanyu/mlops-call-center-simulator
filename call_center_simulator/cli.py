@@ -17,14 +17,10 @@ logger = logging.getLogger(__name__)
 
 @app.command()
 def download_data() -> None:
-    """Download Essays and PersonaChat datasets."""
-    from call_center_simulator.data.download import (
-        download_essays,
-        download_personachat,
-    )
+    """Download MTHR/OCEAN dataset from HuggingFace Hub."""
+    from call_center_simulator.data.download import download_ocean
 
-    download_essays(Path("data/raw/essays.csv"))
-    download_personachat(Path("data/raw"))
+    download_ocean(Path("data/raw/ocean"))
     typer.echo("Data downloaded successfully.")
 
 
