@@ -12,3 +12,9 @@ model:
   lambda_steering: 0.1        # weight of auxiliary OCEAN-classifier loss term in steering training
   model_kwargs:
     trust_remote_code: false
+  ocean_classifier:
+    hidden_dim: 256
+    output_dim: 5
+    dropout: 0.1
+    ckpt_path: null             # set to models/ocean_classifier_best.ckpt after pre-training
+  ocean_onnx_path: models/ocean_classifier.onnx
