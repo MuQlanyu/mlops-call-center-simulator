@@ -24,6 +24,21 @@ def download_data() -> None:
     typer.echo("Data downloaded successfully.")
 
 
+@app.command("preprocess-data")
+def preprocess_data() -> None:
+    """Preprocess raw MTHR/OCEAN CSV → train/val/test CSVs."""
+    from call_center_simulator.data.datamodule import preprocess_and_save
+
+    preprocess_and_save(
+        raw_csv=Path("data/raw/ocean/ocean_raw.csv"),
+        output_dir=Path("data/processed"),
+        train_ratio=0.8,
+        val_ratio=0.1,
+        seed=42,
+    )
+    typer.echo("Preprocessing done.")
+
+
 @app.command("train-ocean")
 def train_ocean(
     overrides: Annotated[

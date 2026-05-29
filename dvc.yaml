@@ -7,22 +7,11 @@ stages:
       - data/raw/ocean/ocean_raw.csv
 
   preprocess:
-    cmd: >
-      uv run python -c "
-      from call_center_simulator.data.datamodule import preprocess_and_save;
-      from pathlib import Path;
-      preprocess_and_save(
-        raw_csv='data/raw/ocean/ocean_raw.csv',
-        output_dir='data/processed',
-        train_ratio=0.8,
-        val_ratio=0.1,
-        seed=42,
-      );
-      print('Preprocessing done.')
-      "
+    cmd: uv run python -m call_center_simulator.cli preprocess-data
     deps:
       - call_center_simulator/data/preprocessing.py
       - call_center_simulator/data/datamodule.py
+      - call_center_simulator/cli.py
       - data/raw/ocean/ocean_raw.csv
     outs:
       - data/processed/ocean_train.csv
