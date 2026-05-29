@@ -1,0 +1,32 @@
+# @package _global_
+# MTHR/OCEAN dataset config
+# Schema discovered 2026-05-29:
+#   text_column: "Text"
+#   OCEAN columns: Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism
+#   value_range: [1.0, 5.0]  (Likert scale → normalized to [0,1] via (x-1)/(5-1))
+#   splits: only "train" (1160 rows) → row-based split applied in preprocessing
+#   no user_id column → user_id_column: null
+data:
+  name: ocean
+  hf_dataset_name: MTHR/OCEAN
+  text_column: Text
+  # OCEAN axis order: O, C, E, A, N (canonical throughout all code)
+  ocean_columns:
+    - Openness
+    - Conscientiousness
+    - Extraversion
+    - Agreeableness
+    - Neuroticism
+  # Raw value range in the dataset (Likert 1–5); normalized to [0,1] in preprocessing
+  ocean_value_range: [1.0, 5.0]
+  # No user_id column in MTHR/OCEAN → row-based split
+  user_id_column: null
+  raw_path: data/raw/ocean
+  processed_dir: data/processed
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  seed: 42
+  batch_size: 16
+  max_length: 256
+  num_workers: 0
