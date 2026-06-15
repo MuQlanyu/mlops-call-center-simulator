@@ -9,6 +9,9 @@ dist/
 *.egg-info/
 .eggs/
 *.egg
+.pytest_cache
+.ruff_cache
+
 
 # Virtual environments
 .venv/
@@ -24,8 +27,7 @@ env/
 /models/*.pt
 /models/*.onnx
 /models/*.ckpt
-.dvc/tmp/
-.dvc/cache/
+.dvc-storage
 
 # MLflow
 mlruns/
