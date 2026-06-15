@@ -53,8 +53,5 @@ logs/
 *.log
 
 # Allow specific model artifacts and plots to be git-tracked
-!models/ocean_classifier_best.ckpt
-!models/steering_best.ckpt
-!models/ocean_classifier.onnx
 !models/metrics.json
 !plots/*.png

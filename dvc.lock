@@ -44,3 +44,98 @@ stages:
       hash: md5
       md5: 5801bfe1a93312c482f5d46049dc2811
       size: 12637
+  train_ocean_classifier:
+    cmd: "uv run python -m call_center_simulator.training.train_ocean_classifier train=default\n"
+    deps:
+    - path: call_center_simulator/models/components/ocean_classifier.py
+      hash: md5
+      md5: cda13b3a24d7a8c1420fd32f88947c22
+      size: 987
+    - path: call_center_simulator/models/ocean_classifier_module.py
+      hash: md5
+      md5: 4487af55fe1934093ecfa65ec64f1b26
+      size: 3303
+    - path: call_center_simulator/training/train_ocean_classifier.py
+      hash: md5
+      md5: 4c0826e05ae69f91750dca03b367c382
+      size: 3071
+    - path: data/processed/ocean_train.csv
+      hash: md5
+      md5: 143d3c20824a5846a12050d4d6222f06
+      size: 103478
+    - path: data/processed/ocean_val.csv
+      hash: md5
+      md5: 5801bfe1a93312c482f5d46049dc2811
+      size: 12637
+    params:
+      configs/config.yaml:
+        seed: 42
+      configs/model/ocean_classifier.yaml:
+        model.ocean_classifier.hidden_dim: 256
+      configs/model/qwen.yaml:
+        model.backbone_name: Qwen/Qwen3-0.6B
+      configs/train/default.yaml:
+        train.learning_rate: 0.001
+        train.max_epochs: 10
+    outs:
+    - path: models/ocean_classifier_best.ckpt
+      hash: md5
+      md5: e025225f9ba67b6ee6daa5e6daa89614
+      size: 530025
+  export_onnx:
+    cmd: "uv run python -m call_center_simulator.inference.export_onnx\n"
+    deps:
+    - path: call_center_simulator/inference/export_onnx.py
+      hash: md5
+      md5: 86f572f84a92b8fc43dc75d8fa7242a2
+      size: 2929
+    - path: models/ocean_classifier_best.ckpt
+      hash: md5
+      md5: e025225f9ba67b6ee6daa5e6daa89614
+      size: 530025
+    outs:
+    - path: models/ocean_classifier.onnx
+      hash: md5
+      md5: a0ca5d77bec2c06821cc3adf0113867b
+      size: 264237
+  train_steering:
+    cmd: "uv run python -m call_center_simulator.training.train train=default\n"
+    deps:
+    - path: call_center_simulator/models/components/steering_vectors.py
+      hash: md5
+      md5: 7738c151329e2920d09691783940d8af
+      size: 4152
+    - path: call_center_simulator/models/steering_module.py
+      hash: md5
+      md5: 0fb2931a56cc42811424d6ca1b5d0b52
+      size: 7668
+    - path: call_center_simulator/training/train.py
+      hash: md5
+      md5: eed1d7adeebc6fb2897b81edb7e350e2
+      size: 3167
+    - path: data/processed/ocean_train.csv
+      hash: md5
+      md5: 143d3c20824a5846a12050d4d6222f06
+      size: 103478
+    - path: data/processed/ocean_val.csv
+      hash: md5
+      md5: 5801bfe1a93312c482f5d46049dc2811
+      size: 12637
+    - path: models/ocean_classifier_best.ckpt
+      hash: md5
+      md5: e025225f9ba67b6ee6daa5e6daa89614
+      size: 530025
+    params:
+      configs/config.yaml:
+        seed: 42
+      configs/model/qwen.yaml:
+        model.backbone_name: Qwen/Qwen3-0.6B
+        model.lambda_steering: 0.1
+      configs/train/default.yaml:
+        train.learning_rate: 0.001
+        train.max_epochs: 10
+    outs:
+    - path: models/steering_best.ckpt
+      hash: md5
+      md5: 24d04ef8c408cb4cfb4c024f9dd58181
+      size: 22227
