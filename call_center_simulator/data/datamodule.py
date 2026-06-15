@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pandas as pd
 import torch
 from lightning import LightningDataModule
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 from transformers import AutoTokenizer
-
-if TYPE_CHECKING:
-    from omegaconf import DictConfig
 
 from call_center_simulator.data.preprocessing import (
     OCEAN_AXIS_ORDER,

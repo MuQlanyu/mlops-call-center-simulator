@@ -9,7 +9,20 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import torch
 import typer
+import uvicorn
+from transformers import AutoModel
+
+from call_center_simulator.data.datamodule import preprocess_and_save
+from call_center_simulator.data.download import download_ocean
+from call_center_simulator.inference.app import main as inference_main
+from call_center_simulator.inference.export_onnx import (
+    export_ocean_classifier_onnx,
+    verify_onnx,
+)
+from call_center_simulator.inference.infer import generate_reply, load_model
+from call_center_simulator.models.components.ocean_classifier import OceanClassifierHead
 
 app = typer.Typer(help="Call-Center Simulator CLI")
 logger = logging.getLogger(__name__)
@@ -18,7 +31,6 @@ logger = logging.getLogger(__name__)
 @app.command()
 def download_data() -> None:
     """Download MTHR/OCEAN dataset from HuggingFace Hub."""
-    from call_center_simulator.data.download import download_ocean
 
     download_ocean(Path("data/raw/ocean"))
     typer.echo("Data downloaded successfully.")
@@ -27,7 +39,6 @@ def download_data() -> None:
 @app.command("preprocess-data")
 def preprocess_data() -> None:
     """Preprocess raw MTHR/OCEAN CSV → train/val/test CSVs."""
-    from call_center_simulator.data.datamodule import preprocess_and_save
 
     preprocess_and_save(
         raw_csv=Path("data/raw/ocean/ocean_raw.csv"),
@@ -78,16 +89,6 @@ def export_onnx(
     backbone: str = typer.Option("Qwen/Qwen3-0.6B", help="Backbone model name"),
 ) -> None:
     """Export OCEAN classifier to ONNX format."""
-    import torch
-    from transformers import AutoModel
-
-    from call_center_simulator.inference.export_onnx import (
-        export_ocean_classifier_onnx,
-        verify_onnx,
-    )
-    from call_center_simulator.models.components.ocean_classifier import (
-        OceanClassifierHead,
-    )
 
     backbone_model = AutoModel.from_pretrained(backbone)
     hidden_size: int = backbone_model.config.hidden_size
@@ -119,7 +120,6 @@ def infer(
     max_tokens: int = typer.Option(128),
 ) -> None:
     """Generate a client reply from CLI."""
-    from call_center_simulator.inference.infer import generate_reply, load_model
 
     history = json.loads(history_json)
     ocean_profile = [
@@ -142,7 +142,6 @@ def serve_api(
     port: int = typer.Option(8000),
 ) -> None:
     """Start FastAPI inference server."""
-    import uvicorn
 
     uvicorn.run(
         "call_center_simulator.inference.api:app", host=host, port=port, reload=False
@@ -155,9 +154,8 @@ def serve_ui(
     port: int = typer.Option(7860),
 ) -> None:
     """Start Gradio UI."""
-    from call_center_simulator.inference.app import main
 
-    main()
+    inference_main()
 
 
 if __name__ == "__main__":

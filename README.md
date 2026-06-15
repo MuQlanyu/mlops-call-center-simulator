@@ -161,7 +161,14 @@ uv run mlflow server --host 127.0.0.1 --port 8080 \
 ### 3. Обучение OCEAN-классификатора
 
 ```bash
-uv run python -m call_center_simulator.cli train-ocean
+uv run python -m call_center_simulator.training.train_ocean_classifier \
+  train=default \
+  train.accelerator=mps \
+  train.precision=32 \
+  train.max_epochs=2 \
+  data.batch_size=8 \
+  data.num_workers=0 \
+  mlflow.tracking_uri=file:./mlruns
 ```
 
 ### 4. Экспорт в ONNX

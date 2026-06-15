@@ -3,7 +3,7 @@
 # Stage 1: Builder
 FROM python:3.11-slim AS builder
 
-RUN pip install --no-cache-dir uv
+RUN pip install  uv
 
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./

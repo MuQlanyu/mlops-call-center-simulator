@@ -1,0 +1,46 @@
+schema: '2.0'
+stages:
+  download:
+    cmd: uv run python -m call_center_simulator.data.download
+    deps:
+    - path: call_center_simulator/data/download.py
+      hash: md5
+      md5: 9cfcd61df87ad0e269257497e2411d67
+      size: 1650
+    outs:
+    - path: data/raw/ocean/ocean_raw.csv
+      hash: md5
+      md5: 96535b4fb9bc2743965f743d1c672552
+      size: 102664
+  preprocess:
+    cmd: uv run python -m call_center_simulator.cli preprocess-data
+    deps:
+    - path: call_center_simulator/cli.py
+      hash: md5
+      md5: d104b3f831ce43e4b7aff5409d01e203
+      size: 4664
+    - path: call_center_simulator/data/datamodule.py
+      hash: md5
+      md5: 848b7f26d905326a397ef391cc98315c
+      size: 7056
+    - path: call_center_simulator/data/preprocessing.py
+      hash: md5
+      md5: 12d1272bfae64bac6e75cd59b99108aa
+      size: 3287
+    - path: data/raw/ocean/ocean_raw.csv
+      hash: md5
+      md5: 96535b4fb9bc2743965f743d1c672552
+      size: 102664
+    outs:
+    - path: data/processed/ocean_test.csv
+      hash: md5
+      md5: 0ea46148ef98c7b225f2521fa2ac41b0
+      size: 13009
+    - path: data/processed/ocean_train.csv
+      hash: md5
+      md5: 143d3c20824a5846a12050d4d6222f06
+      size: 103478
+    - path: data/processed/ocean_val.csv
+      hash: md5
+      md5: 5801bfe1a93312c482f5d46049dc2811
+      size: 12637

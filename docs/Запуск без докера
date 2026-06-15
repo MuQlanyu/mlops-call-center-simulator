@@ -1,0 +1,10 @@
+source .venv/bin/activate
+
+export STEERING_CKPT=models/steering_best.ckpt
+export BACKBONE_NAME=Qwen/Qwen3-0.6B
+python -m call_center_simulator.cli serve-api
+
+
+source .venv/bin/activate
+export API_URL=http://localhost:8000
+python -m call_center_simulator.cli serve-ui
